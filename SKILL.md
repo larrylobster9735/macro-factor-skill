@@ -1,54 +1,78 @@
 ---
 name: macro-factor
 description: |
-  Read and write MacroFactor nutrition data (calories, macros, food logs, goals) via the macro-factor-api Rust crate or larry-tools CLI. Use when an agent needs to: (1) check today's or historical calorie/macro intake, (2) retrieve daily calorie/macro goals, (3) log a food entry (name, calories, protein, carbs, fat) to a specific date, (4) check if a user is under or over their calorie target.
+  Read and write MacroFactor nutrition data (calories, macros, food logs, goals) using the macro-factor-api Rust crate. Use when an agent needs to: (1) check today's or historical calorie/macro intake, (2) retrieve daily calorie/macro goals by day of week, (3) log a food entry (name, calories, protein, carbs, fat) to a specific date, (4) determine if a user is under or over their calorie target.
 ---
 
 # MacroFactor Skill
 
-MacroFactor stores nutrition data in Firebase Firestore. Access is via the `macro-factor-api` crate (Rust) or the `larry-tools` CLI binary.
+MacroFactor stores nutrition data in Firebase Firestore. Access is via the [`macro-factor-api`](https://crates.io/crates/macro-factor-api) Rust crate.
+
+## Cargo.toml
+
+```toml
+[dependencies]
+macro-factor-api = "0.1.1"
+tokio = { version = "1", features = ["full"] }
+chrono = "0.4"
+```
 
 ## Credentials
 
-Required env vars:
-- `MACRO_FACTOR_EMAIL` — account email
-- `MACRO_FACTOR_PASS` — account password
-
-## Quick Reference — larry-tools CLI
-
 ```bash
-# Check today's food log + calorie total
-larry-tools calories
-
-# Check last N days
-larry-tools calories --days 7
-
-# Save to local SQLite DB
-larry-tools calories --save
-
-# Get daily calorie/macro goals (per day of week)
-larry-tools goals
-
-# Log a food entry (today)
-larry-tools log-food --name "Food name" --calories 500 --protein 30 --carbs 40 --fat 15
-
-# Log to a specific date
-larry-tools log-food --name "Burger" --calories 950 --protein 45 --carbs 50 --fat 65 --date 2026-02-18
+MACRO_FACTOR_EMAIL=user@example.com
+MACRO_FACTOR_PASS=password
 ```
 
-## Checking Against Goal
+## Common Patterns
 
-1. Run `larry-tools goals` to get today's calorie target (indexed by day of week: Mon=0..Sun=6)
-2. Run `larry-tools calories` to get actual intake
-3. Compare — report over/under with margin
+### Check today's calories
 
-## Using the Rust API Directly
+```rust
+use macro_factor_api::client::MacroFactorClient;
+use chrono::Local;
 
-See `references/api.md` for full `MacroFactorClient` method signatures and Firestore data layout.
+let mut client = MacroFactorClient::login(email, password).await?;
+let today = Local::now().date_naive();
+let entries = client.get_food_log(today).await?;
+let total_cal: f64 = entries.iter().filter_map(|e| e.calories()).sum();
+let total_protein: f64 = entries.iter().filter_map(|e| e.protein()).sum();
+```
 
-## Notes
+### Get today's calorie goal
 
-- Food log lives in Firestore at `users/{uid}/food/{YYYY-MM-DD}` — one document per day, fields keyed by timestamp ID
-- Nutrition summaries at `users/{uid}/nutrition/{year}` with MMDD keys (may lag behind food log)
-- Prefer food log over nutrition summaries for same-day accuracy
-- Firestore field paths starting with digits must be backtick-quoted in `updateMask` — handled automatically in v0.1.1+
+```rust
+let goals = client.get_goals().await?;
+let dow = chrono::Local::now().weekday().num_days_from_monday() as usize;
+let goal_cal = goals.calories.get(dow).copied().unwrap_or(0.0);
+```
+
+### Check over/under
+
+```rust
+let margin = total_cal - goal_cal;
+if margin > 0.0 {
+    println!("Over by {:.0} kcal", margin);
+} else {
+    println!("Under by {:.0} kcal", margin.abs());
+}
+```
+
+### Log a food entry
+
+```rust
+use chrono::NaiveDate;
+
+client.log_food(
+    NaiveDate::from_ymd_opt(2026, 2, 18).unwrap(),
+    "Wagyu Cheeseburger",
+    1000.0,  // calories
+    45.0,    // protein g
+    50.0,    // carbs g
+    65.0,    // fat g
+).await?;
+```
+
+## Full API Reference
+
+See [references/api.md](references/api.md) for all methods and Firestore schema details.

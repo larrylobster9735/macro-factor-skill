@@ -21,7 +21,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-macro-factor-api = "0.1.1"
+macro-factor-api = "0.2"
 ```
 
 Set env vars:

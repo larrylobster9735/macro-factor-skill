@@ -1,6 +1,6 @@
 # MacroFactor API Reference
 
-Crate: `macro-factor-api = "0.1.1"` on crates.io
+Crate: `macro-factor-api = "0.2"` on crates.io
 Source: https://github.com/benthecarman/macro-factor-rs
 
 ## Client Setup
@@ -55,15 +55,19 @@ entry.fat()      -> Option<f64>
 ### get_nutrition(start, end) -> Vec<NutritionSummary>
 Returns daily nutrition summaries (may lag food log for same-day data).
 
-### log_food(date, name, calories, protein, carbs, fat) -> ()
+### log_food(logged_at, name, calories, protein, carbs, fat) -> ()
 Logs a food entry. Creates the day's food document if it doesn't exist.
+The caller provides the local datetime — the library does not call `now()` internally.
 
 ```rust
-client.log_food(
-    NaiveDate::from_ymd(2026, 2, 18),
-    "NADC Wagyu Burger",
-    1000.0, 45.0, 50.0, 65.0
-).await?;
+// Log at current local time
+client.log_food(chrono::Local::now(), "NADC Wagyu Burger", 1000.0, 45.0, 50.0, 65.0).await?;
+
+// Log at a specific time
+let logged_at = chrono::NaiveDate::from_ymd_opt(2026, 2, 18).unwrap()
+    .and_hms_opt(20, 30, 0).unwrap()
+    .and_local_timezone(chrono::Local).unwrap();
+client.log_food(logged_at, "Dinner", 800.0, 40.0, 60.0, 30.0).await?;
 ```
 
 ### log_weight(date, weight_kg, body_fat) -> ()

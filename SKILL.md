@@ -12,7 +12,7 @@ MacroFactor stores nutrition data in Firebase Firestore. Access is via the [`mac
 
 ```toml
 [dependencies]
-macro-factor-api = "0.1.1"
+macro-factor-api = "0.2"
 tokio = { version = "1", features = ["full"] }
 chrono = "0.4"
 ```
